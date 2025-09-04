@@ -5,7 +5,7 @@ import ChatInterface, { ChatInterfaceRef } from '@/components/chat/ChatInterface
 import BottomNavigation from '@/components/navigation/BottomNavigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Mic } from 'lucide-react';
+import { Send, Mic, Clock } from 'lucide-react';
 import { useViewportHeight } from '@/lib/useViewportHeight';
 import { storageService } from '@/lib/storageService';
 import { JournalEntry } from '@/lib/database';
@@ -16,6 +16,8 @@ export default function ChatPage() {
   const [isStorageInitialized, setIsStorageInitialized] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sessionEntries, setSessionEntries] = useState<JournalEntry[]>([]);
+  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
+  const [hasUnsavedEntries, setHasUnsavedEntries] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const chatInterfaceRef = useRef<ChatInterfaceRef>(null);
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -43,7 +45,7 @@ export default function ChatPage() {
     initializeStorage();
   }, []);
 
-  // Inactivity timer - save session after 5 minutes of inactivity
+  // Inactivity timer - save session after 2 minutes of inactivity
   useEffect(() => {
     const resetInactivityTimer = () => {
       if (inactivityTimerRef.current) {
@@ -54,12 +56,12 @@ export default function ChatPage() {
         if (currentSessionId && sessionEntries.length > 0) {
           try {
             await storageService.saveChatSession(sessionEntries, currentSessionId);
-            console.log(`Session ${currentSessionId} saved due to inactivity`);
+            console.log(`Session ${currentSessionId} saved due to inactivity (${sessionEntries.length} entries)`);
           } catch (error) {
             console.error('Failed to save session on inactivity:', error);
           }
         }
-      }, 5 * 60 * 1000); // 5 minutes
+      }, 2 * 60 * 1000); // 2 minutes
     };
 
     // Reset timer on user activity
@@ -86,15 +88,60 @@ export default function ChatPage() {
     };
   }, [currentSessionId, sessionEntries]);
 
+  // Page unload save - save session when user leaves the page
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (currentSessionId && sessionEntries.length > 0) {
+        // Use sendBeacon for reliable saving on page unload
+        const sessionData = {
+          sessionId: currentSessionId,
+          entryIds: sessionEntries.map(entry => entry.id),
+          startTime: new Date().toISOString(),
+          endTime: new Date().toISOString(),
+        };
+        
+        // Try to save synchronously if possible
+        navigator.sendBeacon('/api/save-session', JSON.stringify(sessionData));
+        
+        // Also try the async save (may not complete before page unloads)
+        saveCurrentSession();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [currentSessionId, sessionEntries]);
+
   const saveCurrentSession = async () => {
     if (currentSessionId && sessionEntries.length > 0) {
       try {
         await storageService.saveChatSession(sessionEntries, currentSessionId);
-        console.log(`✅ Session ${currentSessionId} saved with ${sessionEntries.length} entries`);
+        console.log(`✅ Session ${currentSessionId} saved with ${sessionEntries.length} entry IDs (no duplicate storage)`);
+        setLastSaveTime(new Date());
+        setHasUnsavedEntries(false);
+        return true;
       } catch (error) {
         console.error('Failed to save session:', error);
+        return false;
       }
     }
+    return false;
+  };
+
+
+  const handleEndSession = async () => {
+    // Save current session first
+    await saveCurrentSession();
+    
+    // Start new session
+    const newSessionId = crypto.randomUUID();
+    setCurrentSessionId(newSessionId);
+    setSessionEntries([]);
+    
+    console.log(`🔄 Started new session: ${newSessionId}`);
+    
+    // You could add a toast notification here
+    console.log('✅ Session ended and new session started');
   };
 
   const handleSaveEntry = async (entry: { text: string; emojis: string[]; timestamp: Date }) => {
@@ -104,25 +151,20 @@ export default function ChatPage() {
     }
 
     try {
+      // Save the entry once to the journal entries store
       const savedEntry = await storageService.saveJournalEntry(
         entry.text,
         entry.emojis
       );
       console.log('✅ Entry saved automatically:', savedEntry.id);
       
-      // Add entry to current session
+      // Add entry to current session (in memory only)
       const updatedEntries = [...sessionEntries, savedEntry];
       setSessionEntries(updatedEntries);
+      setHasUnsavedEntries(true);
       
-      // Save session immediately after adding entry
-      if (currentSessionId) {
-        try {
-          await storageService.saveChatSession(updatedEntries, currentSessionId);
-          console.log(`✅ Session ${currentSessionId} updated with new entry`);
-        } catch (error) {
-          console.error('Failed to update session:', error);
-        }
-      }
+      // Note: Session will be saved automatically by the inactivity timer
+      // No need to save session immediately after each entry
       
       // You could add a toast notification here
       // toast.success('Journal entry saved!');
@@ -157,12 +199,30 @@ export default function ChatPage() {
   return (
     <div className="h-screen mobile-viewport-fix tablet-viewport-fix desktop-viewport-fix bg-gray-50">
       {/* Chat Messages Area - with bottom padding for input and navigation */}
-      <div className="h-full pb-32 overflow-hidden">
+      <div className="h-full pb-24 overflow-hidden">
         <ChatInterface ref={chatInterfaceRef} onSaveEntry={handleSaveEntry} />
       </div>
-      
-      {/* Input Area - fixed position above bottom navigation */}
-      <div className="fixed bottom-16 mobile-input-fix tablet-input-fix left-0 right-0 bg-white border-t border-gray-200 p-4 z-10">
+
+      {/* Input Area - fixed position directly on top of bottom navigation */}
+      <div className="fixed left-0 right-0 bg-white border-t border-gray-200 p-4 z-30" style={{ bottom: 'calc(64px + env(safe-area-inset-bottom))' }}>
+        {/* Simple status indicator */}
+        {hasUnsavedEntries && (
+          <div className="flex items-center justify-between mb-2 text-xs text-gray-500">
+            <span className="flex items-center space-x-1">
+              <Clock className="w-3 h-3" />
+              <span>Unsaved entries ({sessionEntries.length})</span>
+            </span>
+            <div className="flex space-x-1">
+              <button
+                onClick={handleEndSession}
+                className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
+              >
+                End
+              </button>
+            </div>
+          </div>
+        )}
+        
         <div className="flex items-center space-x-3">
           <div className="flex-1 relative">
             <Input

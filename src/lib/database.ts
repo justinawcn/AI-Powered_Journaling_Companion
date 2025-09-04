@@ -14,7 +14,7 @@ export interface JournalEntry {
 
 export interface ChatSession {
   id: string;
-  entries: JournalEntry[];
+  entryIds: string[]; // Store only entry IDs instead of full entries
   startTime: Date;
   endTime?: Date;
   summary?: string;
@@ -196,16 +196,16 @@ export class DatabaseManager {
   }
 
   // Settings methods
-  async saveSetting(key: string, value: any): Promise<void> {
+  async saveSetting(key: string, value: unknown): Promise<void> {
     return this.add(STORES.SETTINGS, { key, value });
   }
 
-  async getSetting(key: string): Promise<any> {
-    const result = await this.get<{ key: string; value: any }>(STORES.SETTINGS, key);
+  async getSetting(key: string): Promise<unknown> {
+    const result = await this.get<{ key: string; value: unknown }>(STORES.SETTINGS, key);
     return result?.value;
   }
 
-  async updateSetting(key: string, value: any): Promise<void> {
+  async updateSetting(key: string, value: unknown): Promise<void> {
     return this.update(STORES.SETTINGS, { key, value });
   }
 }

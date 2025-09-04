@@ -33,6 +33,8 @@ export default function SettingsPage() {
     storageUsed: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState<{ removedEntries: number; updatedSessions: number } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -61,12 +63,30 @@ export default function SettingsPage() {
     loadSettings();
   }, []);
 
-  const handleSettingChange = async (key: keyof StorageSettings, value: any) => {
+  const handleSettingChange = async (key: keyof StorageSettings, value: unknown) => {
     try {
       await storageService.saveSetting(key, value);
       setSettings(prev => ({ ...prev, [key]: value }));
     } catch (error) {
       console.error('Failed to update setting:', error);
+    }
+  };
+
+  const handleCleanupDuplicates = async () => {
+    setIsCleaningUp(true);
+    setCleanupResult(null);
+    
+    try {
+      const result = await storageService.cleanupDuplicateEntries();
+      setCleanupResult(result);
+      
+      // Refresh stats after cleanup
+      const newStats = await storageService.getStorageStats();
+      setStats(newStats);
+    } catch (error) {
+      console.error('Failed to cleanup duplicates:', error);
+    } finally {
+      setIsCleaningUp(false);
     }
   };
 
@@ -224,6 +244,53 @@ export default function SettingsPage() {
             <div className="mt-4 text-center">
               <div className="text-sm text-gray-500">Storage Used</div>
               <div className="text-lg font-medium text-gray-900">{formatBytes(stats.storageUsed)}</div>
+            </div>
+          </div>
+
+          {/* Data Cleanup */}
+          <div className="bg-white rounded-lg p-4 border border-gray-200">
+            <div className="flex items-center space-x-2 mb-4">
+              <Trash2 className="w-5 h-5 text-orange-500" />
+              <h2 className="text-lg font-medium text-gray-900">Data Cleanup</h2>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <div className="font-medium text-gray-900 mb-2">Remove Duplicate Entries</div>
+                <div className="text-sm text-gray-500 mb-4">
+                  Clean up duplicate journal entries that may have been saved multiple times. This will help reduce storage usage.
+                </div>
+                <Button
+                  onClick={handleCleanupDuplicates}
+                  disabled={isCleaningUp}
+                  variant="outline"
+                  className="w-full"
+                >
+                  {isCleaningUp ? (
+                    <>
+                      <SettingsIcon className="w-4 h-4 mr-2 animate-spin" />
+                      Cleaning up...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Clean Up Duplicates
+                    </>
+                  )}
+                </Button>
+                {cleanupResult && (
+                  <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                    <div className="text-sm text-green-800">
+                      <div className="font-medium">Cleanup completed successfully!</div>
+                      <div className="mt-1">
+                        • Removed {cleanupResult.removedEntries} duplicate entries
+                      </div>
+                      <div>
+                        • Updated {cleanupResult.updatedSessions} sessions
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

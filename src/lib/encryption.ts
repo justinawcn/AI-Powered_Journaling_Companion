@@ -29,7 +29,7 @@ export async function deriveKeyFromPassword(
   return await crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt: salt,
+      salt: salt as unknown as ArrayBuffer,
       iterations: 100000,
       hash: 'SHA-256',
     },
@@ -51,7 +51,7 @@ export async function encryptText(
   const encryptedData = await crypto.subtle.encrypt(
     {
       name: 'AES-GCM',
-      iv: iv,
+      iv: iv as unknown as ArrayBuffer,
     },
     key,
     encodedText
@@ -69,7 +69,7 @@ export async function decryptText(
   const decryptedData = await crypto.subtle.decrypt(
     {
       name: 'AES-GCM',
-      iv: iv,
+      iv: iv as unknown as ArrayBuffer,
     },
     key,
     encryptedData
@@ -94,11 +94,12 @@ export async function encryptJournalEntry(
   createdAt: Date;
   updatedAt: Date;
 }> {
-  const { encryptedData, iv } = await encryptText(entry.content, key);
+  const content = typeof entry.content === 'string' ? entry.content : '';
+  const { encryptedData, iv } = await encryptText(content, key);
   
   return {
     id: crypto.randomUUID(),
-    content: encryptedData as any, // Store as ArrayBuffer
+    content: encryptedData as ArrayBuffer, // Store as ArrayBuffer
     iv,
     emojis: entry.emojis,
     timestamp: entry.timestamp,
@@ -112,13 +113,21 @@ export async function encryptJournalEntry(
 
 // Decrypt a journal entry
 export async function decryptJournalEntry(
-  encryptedEntry: any,
+  encryptedEntry: JournalEntry,
   key: CryptoKey
 ): Promise<JournalEntry> {
   if (!encryptedEntry.encrypted) {
     return encryptedEntry; // Already decrypted
   }
 
+  if (typeof encryptedEntry.content === 'string') {
+    return encryptedEntry; // Already decrypted
+  }
+  
+  if (!encryptedEntry.iv) {
+    throw new Error('IV is required for decryption');
+  }
+  
   const decryptedContent = await decryptText(
     encryptedEntry.content,
     encryptedEntry.iv,
@@ -195,7 +204,7 @@ export class EncryptionManager {
   // Encrypt journal entry
   async encryptEntry(
     entry: Omit<JournalEntry, 'id' | 'encrypted' | 'createdAt' | 'updatedAt'>
-  ): Promise<any> {
+  ): Promise<JournalEntry> {
     if (!this.key) {
       throw new Error('Encryption not initialized');
     }
@@ -203,7 +212,7 @@ export class EncryptionManager {
   }
 
   // Decrypt journal entry
-  async decryptEntry(encryptedEntry: any): Promise<JournalEntry> {
+  async decryptEntry(encryptedEntry: JournalEntry): Promise<JournalEntry> {
     if (!this.key) {
       throw new Error('Encryption not initialized');
     }

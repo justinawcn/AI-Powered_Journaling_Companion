@@ -1,5 +1,5 @@
 // Comprehensive storage service combining IndexedDB and encryption
-import { dbManager, JournalEntry, ChatSession, STORES } from './database';
+import { dbManager, JournalEntry, ChatSession } from './database';
 import { encryptionManager } from './encryption';
 
 export interface StorageSettings {
@@ -190,7 +190,7 @@ export class StorageService {
 
     const session: ChatSession = {
       id: sessionId || crypto.randomUUID(),
-      entries,
+      entryIds: entries.map(entry => entry.id), // Store only entry IDs
       startTime: new Date(),
       endTime: new Date(),
     };
@@ -203,6 +203,29 @@ export class StorageService {
     this.ensureInitialized();
     const session = await dbManager.getSession(id);
     return session || null;
+  }
+
+  async getChatSessionWithEntries(id: string): Promise<{ session: ChatSession; entries: JournalEntry[] } | null> {
+    this.ensureInitialized();
+    const session = await dbManager.getSession(id);
+    if (!session) return null;
+
+    // Resolve entry IDs to actual entries
+    const entries = await Promise.all(
+      session.entryIds.map(async (entryId) => {
+        const entry = await this.getJournalEntry(entryId);
+        if (!entry) {
+          console.warn(`Entry ${entryId} not found for session ${id}`);
+          return null;
+        }
+        return entry;
+      })
+    );
+
+    // Filter out null entries (in case some entries were deleted)
+    const validEntries = entries.filter((entry): entry is JournalEntry => entry !== null);
+
+    return { session, entries: validEntries };
   }
 
   async getAllChatSessions(): Promise<ChatSession[]> {
@@ -234,7 +257,7 @@ export class StorageService {
   }
 
   // Settings Operations
-async saveSetting(key: string, value: any): Promise<void> {
+async saveSetting(key: string, value: unknown): Promise<void> {
   // Allow saving encryptionEnabled during initialization
   if (!this.initialized && key !== 'encryptionEnabled') {
     throw new Error('Storage service not initialized. Call initialize() first.');
@@ -253,7 +276,7 @@ async saveSetting(key: string, value: any): Promise<void> {
   }
 }
 
-  async getSetting(key: string, defaultValue?: any): Promise<any> {
+  async getSetting(key: string, defaultValue?: unknown): Promise<unknown> {
     this.ensureInitialized();
 
     try {
@@ -281,7 +304,7 @@ async saveSetting(key: string, value: any): Promise<void> {
     for (const key of Object.keys(defaultSettings) as (keyof StorageSettings)[]) {
       const value = await this.getSetting(key);
       if (value !== undefined) {
-        (settings as any)[key] = value;
+        (settings as unknown as Record<string, unknown>)[key] = value;
       }
     }
 
@@ -302,22 +325,22 @@ async saveSetting(key: string, value: any): Promise<void> {
       totalEntries: entries.length,
       totalSessions: sessions.length,
       storageUsed,
-      lastBackup: await this.getSetting('lastBackup'),
+      lastBackup: await this.getSetting('lastBackup') as Date | undefined,
     };
   }
 
   // Backup and Restore
-  async exportData(): Promise<{ entries: JournalEntry[]; sessions: ChatSession[]; settings: any }> {
+  async exportData(): Promise<{ entries: JournalEntry[]; sessions: ChatSession[]; settings: Record<string, unknown> }> {
     this.ensureInitialized();
 
     const entries = await this.getAllJournalEntries();
     const sessions = await this.getAllChatSessions();
     const settings = await this.getAllSettings();
 
-    return { entries, sessions, settings };
+    return { entries, sessions, settings: settings as unknown as Record<string, unknown> };
   }
 
-  async importData(data: { entries?: JournalEntry[]; sessions?: ChatSession[]; settings?: any }): Promise<void> {
+  async importData(data: { entries?: JournalEntry[]; sessions?: ChatSession[]; settings?: Record<string, unknown> }): Promise<void> {
     this.ensureInitialized();
 
     if (data.entries) {
@@ -411,6 +434,87 @@ async saveSetting(key: string, value: any): Promise<void> {
 
   isEncryptionEnabled(): boolean {
     return encryptionManager.isInitialized();
+  }
+
+  // Cleanup method to remove duplicate entries from existing data
+  async cleanupDuplicateEntries(): Promise<{ removedEntries: number; updatedSessions: number }> {
+    this.ensureInitialized();
+
+    console.log('🧹 Starting cleanup of duplicate entries...');
+    
+    const allEntries = await dbManager.getAllEntries();
+    const allSessions = await dbManager.getAllSessions();
+    
+    let removedEntries = 0;
+    let updatedSessions = 0;
+    
+    // Group entries by content and timestamp to find duplicates
+    const entryGroups = new Map<string, JournalEntry[]>();
+    
+    for (const entry of allEntries) {
+      const content = typeof entry.content === 'string' ? entry.content : '[encrypted]';
+      const key = `${content}-${entry.timestamp.getTime()}`;
+      
+      if (!entryGroups.has(key)) {
+        entryGroups.set(key, []);
+      }
+      entryGroups.get(key)!.push(entry);
+    }
+    
+    // Find and remove duplicate entries
+    const entriesToKeep = new Set<string>();
+    const entriesToRemove = new Set<string>();
+    
+    for (const [key, entries] of entryGroups) {
+      if (entries.length > 1) {
+        console.log(`Found ${entries.length} duplicate entries for: ${key.substring(0, 50)}...`);
+        
+        // Keep the first entry (oldest by createdAt)
+        const sortedEntries = entries.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        entriesToKeep.add(sortedEntries[0].id);
+        
+        // Mark others for removal
+        for (let i = 1; i < sortedEntries.length; i++) {
+          entriesToRemove.add(sortedEntries[i].id);
+        }
+      } else {
+        entriesToKeep.add(entries[0].id);
+      }
+    }
+    
+    // Remove duplicate entries
+    for (const entryId of entriesToRemove) {
+      await dbManager.deleteEntry(entryId);
+      removedEntries++;
+    }
+    
+    // Update sessions to use entryIds instead of full entries (if they still have the old format)
+    for (const session of allSessions) {
+      // Check if this session has the old format (entries property instead of entryIds)
+      if ('entries' in session && Array.isArray((session as unknown as { entries: JournalEntry[] }).entries)) {
+        console.log(`Updating session ${session.id} from old format to new format`);
+        
+        const oldEntries = (session as unknown as { entries: JournalEntry[] }).entries;
+        const entryIds = oldEntries
+          .map(entry => entry.id)
+          .filter(id => entriesToKeep.has(id)); // Only keep IDs of entries that weren't removed
+        
+        const updatedSession: ChatSession = {
+          id: session.id,
+          entryIds,
+          startTime: session.startTime,
+          endTime: session.endTime,
+          summary: session.summary,
+        };
+        
+        await dbManager.updateSession(updatedSession);
+        updatedSessions++;
+      }
+    }
+    
+    console.log(`✅ Cleanup complete: Removed ${removedEntries} duplicate entries, updated ${updatedSessions} sessions`);
+    
+    return { removedEntries, updatedSessions };
   }
 }
 

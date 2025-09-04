@@ -50,10 +50,11 @@ export default function HistoryPage() {
 
     // Filter by search query
     if (searchQuery) {
-      filtered = filtered.filter(entry =>
-        entry.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        entry.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
-      );
+      filtered = filtered.filter(entry => {
+        const content = typeof entry.content === 'string' ? entry.content : '';
+        return content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          entry.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+      });
     }
 
     // Filter by date
@@ -214,7 +215,7 @@ export default function HistoryPage() {
                 {/* Entry Content */}
                 <div className="mb-3">
                   <p className="text-gray-900 leading-relaxed">
-                    {entry.content}
+                    {typeof entry.content === 'string' ? entry.content : '[Encrypted Entry]'}
                   </p>
                 </div>
 
