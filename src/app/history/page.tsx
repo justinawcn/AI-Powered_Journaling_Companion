@@ -28,6 +28,8 @@ export default function HistoryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedMood, setSelectedMood] = useState('');
+  const [needsPassword, setNeedsPassword] = useState(false);
+  const [password, setPassword] = useState('');
 
   // Fix viewport height for mobile devices
   useViewportHeight();
@@ -37,8 +39,18 @@ export default function HistoryPage() {
       try {
         await storageService.initialize();
         const loadedEntries = await storageService.getAllJournalEntries();
-        setEntries(loadedEntries);
-        setFilteredEntries(loadedEntries);
+        
+        // Check if we have encrypted entries that need password
+        const hasEncryptedEntries = loadedEntries.some(entry => 
+          entry.encrypted && typeof entry.content !== 'string'
+        );
+        
+        if (hasEncryptedEntries) {
+          setNeedsPassword(true);
+        } else {
+          setEntries(loadedEntries);
+          setFilteredEntries(loadedEntries);
+        }
       } catch (error) {
         console.error('Failed to load journal entries:', error);
       } finally {
@@ -48,6 +60,25 @@ export default function HistoryPage() {
 
     loadEntries();
   }, []);
+
+  const handlePasswordSubmit = async () => {
+    if (!password.trim()) return;
+    
+    try {
+      setIsLoading(true);
+      await storageService.initialize(password);
+      const loadedEntries = await storageService.getAllJournalEntries();
+      setEntries(loadedEntries);
+      setFilteredEntries(loadedEntries);
+      setNeedsPassword(false);
+      setPassword('');
+    } catch (error) {
+      console.error('Failed to decrypt entries:', error);
+      alert('Invalid password. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     let filtered = entries;
@@ -116,6 +147,41 @@ export default function HistoryPage() {
     setSelectedDate('');
     setSelectedMood('');
   };
+
+  if (needsPassword) {
+    return (
+      <div className="h-screen mobile-viewport-fix tablet-viewport-fix desktop-viewport-fix flex items-center justify-center bg-gray-50">
+        <div className="w-full max-w-md mx-4">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="text-center mb-6">
+              <Calendar className="w-12 h-12 mx-auto mb-4 text-blue-500" />
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Enter Password</h2>
+              <p className="text-gray-600">Your journal entries are encrypted. Please enter your password to view them.</p>
+            </div>
+            
+            <div className="space-y-4">
+              <Input
+                type="password"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handlePasswordSubmit()}
+                className="w-full"
+              />
+              
+              <Button 
+                onClick={handlePasswordSubmit}
+                disabled={!password.trim() || isLoading}
+                className="w-full"
+              >
+                {isLoading ? 'Decrypting...' : 'Decrypt Entries'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -244,7 +310,7 @@ export default function HistoryPage() {
                 {/* Entry Content */}
                 <div className="mb-3">
                   <p className="text-gray-900 leading-relaxed">
-                    {typeof entry.content === 'string' ? entry.content : '[Encrypted Entry]'}
+                    {typeof entry.content === 'string' ? entry.content : '[Unable to decrypt entry]'}
                   </p>
                 </div>
 

@@ -10,6 +10,11 @@ export interface JournalEntry {
   mood?: string;
   createdAt: Date;
   updatedAt: Date;
+  // AI Analysis fields
+  sentimentScore?: number;
+  themes?: string[];
+  analysisTimestamp?: Date;
+  analysisVersion?: string;
 }
 
 export interface ChatSession {

@@ -1,6 +1,7 @@
 // Comprehensive storage service combining IndexedDB and encryption
 import { dbManager, JournalEntry, ChatSession } from './database';
 import { encryptionManager } from './encryption';
+import { aiService } from './aiService';
 
 export interface StorageSettings {
   encryptionEnabled: boolean;
@@ -86,6 +87,10 @@ export class StorageService {
     }
 
     await dbManager.saveEntry(entry);
+    
+    // Clear AI analysis cache when new entries are added
+    aiService.clearCache();
+    
     return entry;
   }
 
@@ -106,6 +111,16 @@ export class StorageService {
     this.ensureInitialized();
 
     const entries = await dbManager.getAllEntries();
+    
+    // Check if encryption is enabled but not initialized
+    const encryptionEnabled = await this.getSetting('encryptionEnabled', false) as boolean;
+    
+    if (encryptionEnabled && !encryptionManager.isInitialized()) {
+      // Encryption is enabled but not initialized - return entries as-is
+      // The UI should prompt for password to decrypt
+      console.warn('Encryption is enabled but not initialized. Entries will be shown as encrypted.');
+      return entries.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    }
     
     if (encryptionManager.isInitialized()) {
       // Decrypt all encrypted entries
