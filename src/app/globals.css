@@ -59,6 +59,28 @@
   }
 }
 
+/* Ensure proper viewport height usage */
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Mobile viewport height fix */
+:root {
+  --vh: 1vh;
+}
+
+html {
+  height: 100vh;
+  height: calc(var(--vh, 1vh) * 100);
+}
+
+body {
+  height: 100vh;
+  height: calc(var(--vh, 1vh) * 100);
+  overflow: hidden;
+}
+
 /* Custom scrollbar for chat messages */
 .overflow-y-auto::-webkit-scrollbar {
   width: 4px;
@@ -75,4 +97,54 @@
 
 .overflow-y-auto::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
+}
+
+/* Ensure proper flex behavior for chat container */
+.chat-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+  .mobile-viewport-fix {
+    height: 100vh;
+    height: calc(var(--vh, 1vh) * 100);
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* Ensure input field accounts for safe area */
+  .mobile-input-fix {
+    bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Tablet-specific styles */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .tablet-viewport-fix {
+    height: 100vh;
+    height: calc(var(--vh, 1vh) * 100);
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* Ensure input field accounts for safe area */
+  .tablet-input-fix {
+    bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Desktop styles */
+@media (min-width: 1025px) {
+  .desktop-viewport-fix {
+    height: 100vh;
+  }
 }

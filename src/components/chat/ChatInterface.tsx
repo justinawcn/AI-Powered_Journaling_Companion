@@ -1,11 +1,8 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Send, Mic, Heart } from 'lucide-react';
+import { Heart } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -19,7 +16,11 @@ interface ChatInterfaceProps {
   onSaveEntry?: (entry: { text: string; emojis: string[]; timestamp: Date }) => void;
 }
 
-export default function ChatInterface({ onSaveEntry }: ChatInterfaceProps) {
+export interface ChatInterfaceRef {
+  addMessage: (content: string) => void;
+}
+
+const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(({ onSaveEntry }, ref) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -28,10 +29,8 @@ export default function ChatInterface({ onSaveEntry }: ChatInterfaceProps) {
       timestamp: new Date(),
     }
   ]);
-  const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -41,33 +40,36 @@ export default function ChatInterface({ onSaveEntry }: ChatInterfaceProps) {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = async () => {
-    if (!inputValue.trim()) return;
+  useImperativeHandle(ref, () => ({
+    addMessage,
+  }));
 
-    const userMessage: Message = {
+  const addMessage = (content: string, type: 'user' | 'ai' = 'user') => {
+    const newMessage: Message = {
       id: Date.now().toString(),
-      type: 'user',
-      content: inputValue,
+      type,
+      content,
       timestamp: new Date(),
-      emojis: extractEmojis(inputValue),
+      emojis: type === 'user' ? extractEmojis(content) : undefined,
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
-    setIsTyping(true);
-
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse = generateAIResponse(inputValue);
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'ai',
-        content: aiResponse,
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, aiMessage]);
-      setIsTyping(false);
-    }, 1000);
+    setMessages(prev => [...prev, newMessage]);
+    
+    if (type === 'user') {
+      setIsTyping(true);
+      // Simulate AI response
+      setTimeout(() => {
+        const aiResponse = generateAIResponse(content);
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'ai',
+          content: aiResponse,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, aiMessage]);
+        setIsTyping(false);
+      }, 1000);
+    }
   };
 
   const extractEmojis = (text: string): string[] => {
@@ -86,12 +88,6 @@ export default function ChatInterface({ onSaveEntry }: ChatInterfaceProps) {
     return responses[Math.floor(Math.random() * responses.length)];
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
 
   const handleSaveEntry = () => {
     const lastUserMessage = messages
@@ -108,9 +104,9 @@ export default function ChatInterface({ onSaveEntry }: ChatInterfaceProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="h-full flex flex-col bg-white">
       {/* Header */}
-      <div className="flex items-center p-4 border-b border-gray-200 bg-white shadow-sm">
+      <div className="flex items-center p-4 border-b border-gray-200 bg-white shadow-sm flex-shrink-0">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
             <Heart className="w-6 h-6 text-white" />
@@ -123,7 +119,7 @@ export default function ChatInterface({ onSaveEntry }: ChatInterfaceProps) {
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
         {messages.map((message) => (
           <div
             key={message.id}
@@ -182,49 +178,10 @@ export default function ChatInterface({ onSaveEntry }: ChatInterfaceProps) {
         
         <div ref={messagesEndRef} />
       </div>
-
-      {/* Input Area */}
-      <div className="p-4 border-t border-gray-200 bg-white">
-        <div className="flex items-center space-x-3">
-          <div className="flex-1 relative">
-            <Input
-              ref={inputRef}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Share what's on your mind..."
-              className="pr-12 rounded-full border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-            />
-            <Button
-              size="sm"
-              variant="ghost"
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 h-8 w-8 text-gray-400 hover:text-gray-600"
-            >
-              <Mic className="w-4 h-4" />
-            </Button>
-          </div>
-          <Button
-            onClick={handleSendMessage}
-            disabled={!inputValue.trim()}
-            className="rounded-full w-12 h-12 p-0 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300"
-          >
-            <Send className="w-5 h-5" />
-          </Button>
-        </div>
-        
-        {/* Save Entry Button */}
-        {messages.some(m => m.type === 'user') && (
-          <div className="mt-3 flex justify-center">
-            <Button
-              onClick={handleSaveEntry}
-              variant="outline"
-              className="rounded-full px-6 py-2 border-blue-500 text-blue-500 hover:bg-blue-50"
-            >
-              Save Entry
-            </Button>
-          </div>
-        )}
-      </div>
     </div>
   );
-}
+});
+
+ChatInterface.displayName = 'ChatInterface';
+
+export default ChatInterface;
