@@ -125,6 +125,15 @@ export default function InsightsPage() {
     }
   };
 
+  const getSentimentFace = (sentiment: string) => {
+    switch (sentiment?.toLowerCase()) {
+      case 'positive': return '😊';
+      case 'negative': return '😔';
+      case 'neutral': return '😐';
+      default: return '😐';
+    }
+  };
+
   const getSentimentColor = (sentiment: string) => {
     switch (sentiment?.toLowerCase()) {
       case 'positive': return 'text-green-600 bg-green-50';
@@ -198,15 +207,14 @@ export default function InsightsPage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-700">Overall Sentiment</span>
-                      <Badge className={getSentimentColor(analysisResults.sentiment.data.overallSentiment)}>
-                        {analysisResults.sentiment.data.overallSentiment}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700">Sentiment Score</span>
-                      <span className="text-sm text-gray-600">
-                        {analysisResults.sentiment.data.sentimentScore?.toFixed(2) || 'N/A'}
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-2xl">
+                          {getSentimentFace(analysisResults.sentiment.data.overallSentiment)}
+                        </span>
+                        <Badge className={getSentimentColor(analysisResults.sentiment.data.overallSentiment)}>
+                          {analysisResults.sentiment.data.overallSentiment}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
                 </CardContent>

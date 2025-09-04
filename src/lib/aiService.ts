@@ -94,10 +94,10 @@ export class AIService {
   };
   private pendingRequests = new Map<string, Promise<AIAnalysisResult>>();
 
-  // Rate limiting configuration - Very conservative to avoid OpenAI rate limits
-  private readonly RATE_LIMIT_REQUESTS_PER_MINUTE = 1; // Reduced from 3 to 1
+  // Rate limiting configuration
+  private readonly RATE_LIMIT_REQUESTS_PER_MINUTE = 3;
   private readonly RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-  private readonly REQUEST_DELAY = 5000; // Increased from 2s to 5s between requests
+  private readonly REQUEST_DELAY = 2000; // 2 seconds between requests
 
   // Initialize with API key from environment
   async initialize(): Promise<void> {
@@ -199,13 +199,9 @@ export class AIService {
     if (now > this.rateLimitState.resetTime) {
       this.rateLimitState.requestCount = 0;
       this.rateLimitState.resetTime = now + this.RATE_LIMIT_WINDOW;
-      console.log('🔄 Rate limit window reset');
     }
 
-    const canMakeRequest = this.rateLimitState.requestCount < this.RATE_LIMIT_REQUESTS_PER_MINUTE;
-    console.log(`📊 Rate limit check: ${this.rateLimitState.requestCount}/${this.RATE_LIMIT_REQUESTS_PER_MINUTE} requests used, can make request: ${canMakeRequest}`);
-    
-    return canMakeRequest;
+    return this.rateLimitState.requestCount < this.RATE_LIMIT_REQUESTS_PER_MINUTE;
   }
 
   private async enforceRateLimit(): Promise<void> {
