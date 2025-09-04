@@ -52,8 +52,14 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(({ onSave
       timestamp: new Date(),
       emojis: type === 'user' ? extractEmojis(content) : undefined,
     };
-
+  
     setMessages(prev => [...prev, newMessage]);
+    
+    // AUTO-SAVE USER MESSAGES
+    if (type === 'user') {
+      // Automatically save user messages to database
+      saveUserMessageToDatabase(content, extractEmojis(content));
+    }
     
     if (type === 'user') {
       setIsTyping(true);
@@ -69,6 +75,19 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(({ onSave
         setMessages(prev => [...prev, aiMessage]);
         setIsTyping(false);
       }, 1000);
+    }
+  };
+  
+  // Add this new method to ChatInterface:
+  const saveUserMessageToDatabase = async (content: string, emojis: string[]) => {
+    try {
+      // Import storageService dynamically
+      const { storageService } = await import('@/lib/storageService');
+      
+      await storageService.saveJournalEntry(content, emojis);
+      console.log('✅ Message auto-saved to database');
+    } catch (error) {
+      console.error('❌ Failed to auto-save message:', error);
     }
   };
 

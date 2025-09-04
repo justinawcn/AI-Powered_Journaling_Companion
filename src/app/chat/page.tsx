@@ -1,26 +1,59 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ChatInterface, { ChatInterfaceRef } from '@/components/chat/ChatInterface';
 import BottomNavigation from '@/components/navigation/BottomNavigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Mic } from 'lucide-react';
 import { useViewportHeight } from '@/lib/useViewportHeight';
+import { storageService } from '@/lib/storageService';
 
 export default function ChatPage() {
   const [activeTab, setActiveTab] = useState('chat');
   const [inputValue, setInputValue] = useState('');
+  const [isStorageInitialized, setIsStorageInitialized] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const chatInterfaceRef = useRef<ChatInterfaceRef>(null);
   
   // Fix viewport height for mobile devices
   useViewportHeight();
 
-  const handleSaveEntry = (entry: { text: string; emojis: string[]; timestamp: Date }) => {
-    console.log('Saving entry:', entry);
-    // TODO: Implement entry saving logic
-    // This will be connected to the local storage system later
+  // Initialize storage service
+  useEffect(() => {
+    const initializeStorage = async () => {
+      try {
+        await storageService.initialize();
+        setIsStorageInitialized(true);
+        console.log('Storage service initialized successfully');
+      } catch (error) {
+        console.error('Failed to initialize storage service:', error);
+      }
+    };
+
+    initializeStorage();
+  }, []);
+
+  const handleSaveEntry = async (entry: { text: string; emojis: string[]; timestamp: Date }) => {
+    if (!isStorageInitialized) {
+      console.warn('Storage not initialized yet');
+      return;
+    }
+
+    try {
+      const savedEntry = await storageService.saveJournalEntry(
+        entry.text,
+        entry.emojis
+      );
+      console.log('Entry saved successfully:', savedEntry);
+      
+      // You could add a toast notification here
+      // toast.success('Journal entry saved!');
+    } catch (error) {
+      console.error('Failed to save journal entry:', error);
+      // You could add an error toast here
+      // toast.error('Failed to save entry. Please try again.');
+    }
   };
 
   const handleTabChange = (tabId: string) => {
