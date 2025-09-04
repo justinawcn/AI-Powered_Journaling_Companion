@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import ChatInterface, { ChatInterfaceRef } from '@/components/chat/ChatInterface';
 import BottomNavigation from '@/components/navigation/BottomNavigation';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import { storageService } from '@/lib/storageService';
 import { JournalEntry } from '@/lib/database';
 
 export default function ChatPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('chat');
   const [inputValue, setInputValue] = useState('');
   const [isStorageInitialized, setIsStorageInitialized] = useState(false);
@@ -177,8 +179,27 @@ export default function ChatPage() {
 
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
-    // TODO: Implement navigation between tabs
-    console.log('Navigating to:', tabId);
+    
+    // Navigate to the appropriate page
+    switch (tabId) {
+      case 'home':
+        router.push('/');
+        break;
+      case 'chat':
+        router.push('/chat');
+        break;
+      case 'insights':
+        router.push('/insights');
+        break;
+      case 'history':
+        router.push('/history');
+        break;
+      case 'settings':
+        router.push('/settings');
+        break;
+      default:
+        console.log('Unknown tab:', tabId);
+    }
   };
 
   const handleSendMessage = () => {

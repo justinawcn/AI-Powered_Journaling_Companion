@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import BottomNavigation from '@/components/navigation/BottomNavigation';
 import { 
   Shield, 
   Download, 
@@ -20,6 +22,8 @@ import { storageService, StorageSettings, StorageStats } from '@/lib/storageServ
 import { useViewportHeight } from '@/lib/useViewportHeight';
 
 export default function SettingsPage() {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState('settings');
   const [settings, setSettings] = useState<StorageSettings>({
     encryptionEnabled: false,
     autoSave: true,
@@ -214,6 +218,31 @@ export default function SettingsPage() {
       </div>
     );
   }
+
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+    
+    // Navigate to the appropriate page
+    switch (tabId) {
+      case 'home':
+        router.push('/');
+        break;
+      case 'chat':
+        router.push('/chat');
+        break;
+      case 'insights':
+        router.push('/insights');
+        break;
+      case 'history':
+        router.push('/history');
+        break;
+      case 'settings':
+        router.push('/settings');
+        break;
+      default:
+        console.log('Unknown tab:', tabId);
+    }
+  };
 
   return (
     <div className="h-screen mobile-viewport-fix tablet-viewport-fix desktop-viewport-fix bg-gray-50">
@@ -443,6 +472,9 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+      
+      {/* Bottom Navigation */}
+      <BottomNavigation activeTab={activeTab} onTabChange={handleTabChange} />
     </div>
   );
 }
