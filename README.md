@@ -1,6 +1,6 @@
 # Vibe Journal - AI-Powered Journaling Companion
 
-Demo - https://youtu.be/-oZXv-ix384
+Demo - https://youtu.be/-oZXv-ix384 (recommended playspeed- 1.5X)
 
 <div align="center">
   <img src="https://img.shields.io/badge/Next.js-15.5.2-black?style=for-the-badge&logo=next.js" alt="Next.js" />
