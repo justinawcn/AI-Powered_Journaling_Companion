@@ -185,11 +185,11 @@ export class StorageService {
   }
 
   // Chat Session Operations
-  async saveChatSession(entries: JournalEntry[]): Promise<ChatSession> {
+  async saveChatSession(entries: JournalEntry[], sessionId?: string): Promise<ChatSession> {
     this.ensureInitialized();
 
     const session: ChatSession = {
-      id: crypto.randomUUID(),
+      id: sessionId || crypto.randomUUID(),
       entries,
       startTime: new Date(),
       endTime: new Date(),
@@ -201,7 +201,8 @@ export class StorageService {
 
   async getChatSession(id: string): Promise<ChatSession | null> {
     this.ensureInitialized();
-    return await dbManager.getSession(id);
+    const session = await dbManager.getSession(id);
+    return session || null;
   }
 
   async getAllChatSessions(): Promise<ChatSession[]> {
@@ -280,7 +281,7 @@ async saveSetting(key: string, value: any): Promise<void> {
     for (const key of Object.keys(defaultSettings) as (keyof StorageSettings)[]) {
       const value = await this.getSetting(key);
       if (value !== undefined) {
-        settings[key] = value;
+        (settings as any)[key] = value;
       }
     }
 

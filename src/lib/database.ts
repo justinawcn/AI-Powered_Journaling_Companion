@@ -1,10 +1,11 @@
 // IndexedDB database configuration and setup
 export interface JournalEntry {
   id: string;
-  content: string;
+  content: string | ArrayBuffer;
   emojis: string[];
   timestamp: Date;
   encrypted: boolean;
+  iv?: Uint8Array;
   tags?: string[];
   mood?: string;
   createdAt: Date;

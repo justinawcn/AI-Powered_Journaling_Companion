@@ -59,6 +59,15 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(({ onSave
     if (type === 'user') {
       // Automatically save user messages to database
       saveUserMessageToDatabase(content, extractEmojis(content));
+      
+      // Also trigger the onSaveEntry callback for session management
+      if (onSaveEntry) {
+        onSaveEntry({
+          text: content,
+          emojis: extractEmojis(content),
+          timestamp: new Date(),
+        });
+      }
     }
     
     if (type === 'user') {
